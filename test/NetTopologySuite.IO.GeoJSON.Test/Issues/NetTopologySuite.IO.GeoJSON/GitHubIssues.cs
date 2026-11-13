@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
+using NetTopologySuite.Algorithm;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
 using NetTopologySuite.IO.Converters;
-using NetTopologySuite.Triangulate;
 using Newtonsoft.Json;
 using NUnit.Framework;
 
@@ -380,10 +382,87 @@ namespace NetTopologySuite.IO.GeoJSON.Test.Issues.NetTopologySuite.IO.GeoJSON
                 jss.Converters.Add(new FeatureCollectionConverter());
                 jss.Converters.Add(new FeatureConverter());
                 jss.Converters.Add(new GeometryConverter(factory, dimension));
-                jss.Converters.Add(new GeometryArrayConverter(factory, dimension));
-                jss.Converters.Add(new CoordinateConverter(factory.PrecisionModel, dimension));
+                //jss.Converters.Add(new GeometryArrayConverter(factory, dimension));
+                //jss.Converters.Add(new CoordinateConverter(factory.PrecisionModel, dimension));
                 jss.Converters.Add(new EnvelopeConverter());
             }, Throws.Nothing);
+        }
+
+        [Test, GeoJsonIssueNumber(31), Explicit, Ignore("coordinates is not a real GeoJSON object, it is some sort of array, so a converter is not correct.")]
+        public void TestCoordinateConverter()
+        {
+            var geoSerializer = GeoJsonSerializer.CreateDefault();
+
+            var c1 = new Coordinate(1, 2);
+            var sb = new StringBuilder();
+            geoSerializer.Serialize(new JsonTextWriter(new StringWriter(sb)), c1);
+            string json = sb.ToString(); // it is equal to "[1.0,2.0]"
+
+            Coordinate c2 = null;
+            Assert.DoesNotThrow(() =>
+                c2 = geoSerializer.Deserialize<Coordinate>(new JsonTextReader(new StringReader(json))));
+
+            Assert.That(c2, Is.Not.Null);
+            Assert.That(c2, Is.EqualTo(c1));
+
+        }
+
+        [Test, GeoJsonIssueNumber(37)]
+        public void TestSelfReferenceLoop()
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            var file = asm.GetManifestResourceStream("NetTopologySuite.IO.GeoJSON.Test.Issue37.GeoJson");
+            if (file == null)
+                throw new IgnoreException("Resource Issue37.json not found");
+
+            var reader = new GeoJsonReader();
+            var writer = new GeoJsonWriter();
+            AttributesTableConverter.WriteIdToProperties = true;
+
+            Assert.That(() =>
+            {
+                var data = reader.Read<Feature>(new JsonTextReader(new StreamReader(file)));
+
+                var admin = AdminType.City;
+                int id = Convert.ToInt32(data.Attributes["id"]);
+                if (id - 100000000 > 256)
+                {
+                    admin = AdminType.Distric;
+                }
+
+                if (!data.Attributes.Exists("wof:lang_x_official"))
+                    data.Attributes.Add("wof:lang_x_official", new List<string>() {"vnm", "eng"});
+
+
+                var result = AliasNames(data.Attributes["wof:name"].ToString(), admin);
+                if (result.Count > 0)
+                {
+                    if (data.Attributes.Exists("name:eng_x_preferred"))
+                        data.Attributes.DeleteAttribute("name:eng_x_preferred");
+                    if (data.Attributes.Exists("label:eng_x_preferred"))
+                        data.Attributes.DeleteAttribute("label:eng_x_preferred");
+                    if (data.Attributes.Exists("name:vnm_x_preferred"))
+                        data.Attributes.DeleteAttribute("name:vnm_x_preferred");
+
+
+                    result.Insert(0, data.Attributes["wof:name"].ToString());
+                    data.Attributes.Add("name:eng_x_preferred", result);
+                    data.Attributes.Add("name:vnm_x_preferred", result);
+                }
+
+                string json = writer.Write(data);
+                TestContext.WriteLine(json);
+            }, Throws.Nothing);
+        }
+
+        private IList<string> AliasNames(string key, AdminType adminType)
+        {
+            return new List<string>(new [] { $"{key}_{adminType}_1", $"{key}_{adminType}_2" });
+        }
+
+        private enum AdminType
+        {
+            City, Distric
         }
 
         [Test, GeoJsonIssueNumber(41)]
@@ -441,7 +520,92 @@ namespace NetTopologySuite.IO.GeoJSON.Test.Issues.NetTopologySuite.IO.GeoJSON
             Assert.That(mc.ValueInt32, Is.EqualTo(17));
             Assert.That(mc.ValueDouble, Is.EqualTo(Math.PI));
         }
-        
+
+        [Test, GeoJsonIssueNumber(51)]
+        public void TestPrecisedEnvelope()
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            var file = asm.GetManifestResourceStream("NetTopologySuite.IO.GeoJSON.Test.Issue51.GeoJson");
+            if (file == null)
+                throw new IgnoreException("Resource Issue51.json not found");
+
+            var serializer = GeoJsonSerializer.Create(new JsonSerializerSettings(),
+                NtsGeometryServices.Instance.CreateGeometryFactory(new PrecisionModel(1000), 4326));
+
+            FeatureCollection fc = null;
+            Assert.That(() => fc = serializer.Deserialize<FeatureCollection>(new JsonTextReader(new StreamReader(file))), Throws.Nothing);
+            Assert.That(fc, Is.Not.Null);
+
+            serializer = GeoJsonSerializer.Create(new JsonSerializerSettings(),
+                NtsGeometryServices.Instance.CreateGeometryFactory(new PrecisionModel(1000), 4326));
+            var sw = new StringWriter(new StringBuilder());
+
+            serializer.Serialize(sw, fc);
+            sw.Flush();
+
+            Assert.That(sw.ToString(), Is.EqualTo("{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"bbox\":[-72.331,41.296,-72.277,41.611],\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-72.316,41.296],[-72.316,41.296],[-72.317,41.297],[-72.318,41.298],[-72.318,41.298]]},\"properties\":{\"cumulativeDistance\":42.3458,\"distance\":42.3458,\"cumulativeTime\":42.3458,\"time\":42.3458}}],\"bbox\":[-72.331,41.296,-72.277,41.611]}"));
+        }
+
+        [GeoJsonIssueNumber(52)]
+        [TestCase(RingOrientationOption.DoNotModify, "POLYGON((0 0, 10 0, 0 10, 0 0), (1 1, 8 1, 1 8, 1 1))")]
+        [TestCase(RingOrientationOption.DoNotModify, "POLYGON((0 0, 0 10, 10 0, 0 0), (1 1, 8 1, 1 8, 1 1))")]
+        [TestCase(RingOrientationOption.DoNotModify, "POLYGON((0 0, 0 10, 10 0, 0 0), (1 1, 1 8, 8 1, 1 1))")]
+        [TestCase(RingOrientationOption.EnforceRfc9746, "POLYGON((0 0, 10 0, 0 10, 0 0), (1 1, 8 1, 1 8, 1 1))")]
+        [TestCase(RingOrientationOption.EnforceRfc9746, "POLYGON((0 0, 0 10, 10 0, 0 0), (1 1, 8 1, 1 8, 1 1))")]
+        [TestCase(RingOrientationOption.EnforceRfc9746, "POLYGON((0 0, 0 10, 10 0, 0 0), (1 1, 1 8, 8 1, 1 1))")]
+        [TestCase(RingOrientationOption.NtsGeoJsonV2, "POLYGON((0 0, 10 0, 0 10, 0 0), (1 1, 8 1, 1 8, 1 1))")]
+        [TestCase(RingOrientationOption.NtsGeoJsonV2, "POLYGON((0 0, 0 10, 10 0, 0 0), (1 1, 8 1, 1 8, 1 1))")]
+        [TestCase(RingOrientationOption.NtsGeoJsonV2, "POLYGON((0 0, 0 10, 10 0, 0 0), (1 1, 1 8, 8 1, 1 1))")]
+        public void TestIssue52(RingOrientationOption ero, string wkt)
+        {
+            var rdr = new WKTReader();
+            var poly1 = (Polygon)rdr.Read(wkt);
+            var js = new JsonSerializerSettings();
+            var s = GeoJsonSerializer.Create(js, poly1.Factory, 2, ero);
+            var buffer = new StringBuilder();
+            using var w = new JsonTextWriter(new StringWriter(buffer));
+            s.Serialize(w, poly1);
+            using var r = new JsonTextReader(new StringReader(buffer.ToString()));
+            var poly2 = s.Deserialize<Polygon>(r);
+
+            switch (ero)
+            {
+                case RingOrientationOption.DoNotModify:
+                    CheckRingOrientation(poly2.ExteriorRing, GetRingOrientation(poly1.ExteriorRing));
+                    for (int i = 0; i < poly2.NumInteriorRings; i++)
+                        CheckRingOrientation(poly2.GetInteriorRingN(i), GetRingOrientation(poly1.GetInteriorRingN(i)));
+                    break;
+
+                case RingOrientationOption.EnforceRfc9746:
+                    CheckRingOrientation(poly2.ExteriorRing, OrientationIndex.CounterClockwise);
+                    for (int i = 0; i < poly2.NumInteriorRings; i++)
+                        CheckRingOrientation(poly2.GetInteriorRingN(i), OrientationIndex.Clockwise);
+                    break;
+
+                case RingOrientationOption.NtsGeoJsonV2:
+                    CheckRingOrientation(poly2.ExteriorRing, OrientationIndex.Clockwise);
+                    for (int i = 0; i < poly2.NumInteriorRings; i++)
+                        CheckRingOrientation(poly2.GetInteriorRingN(i), OrientationIndex.CounterClockwise);
+                    break;
+            }
+
+
+        }
+
+        private static void CheckRingOrientation(LineString ring, OrientationIndex ori)
+        {
+            Assert.That(GetRingOrientation(ring), Is.EqualTo(ori));
+        }
+
+
+        private static OrientationIndex GetRingOrientation(LineString ring)
+        {
+            if (!(ring is LinearRing lr))
+                throw new ArgumentException(nameof(ring));
+
+            return lr.IsCCW ? OrientationIndex.CounterClockwise : OrientationIndex.Clockwise;
+        }
+
         [GeoJsonIssueNumber(59)]
         [Test]
         public void TestGeoJsonWithNestedObjectsInProperties()
@@ -489,6 +653,29 @@ namespace NetTopologySuite.IO.GeoJSON.Test.Issues.NetTopologySuite.IO.GeoJSON
             Assert.That(g, Is.Not.Null);
             Assert.That(g.IsEmpty);
         }
+
+        [GeoJsonIssueNumber(79)]
+        [Test]
+        public void TestFeatureIdSerializedToRoot()
+        {
+            var feature = new Feature
+            {
+                Geometry = new Point(0, 0),
+                Attributes = new AttributesTable(new Dictionary<string, object> {
+                    { "name", "Test feature" },
+                    { "id", 1 }
+                })
+            };
+
+            var serializer = GeoJsonSerializer.Create();
+            using var stringWriter = new StringWriter();
+            using var jsonWriter = new JsonTextWriter(stringWriter);
+            serializer.Serialize(jsonWriter, feature);
+
+            string expected = "{\"type\":\"Feature\",\"id\":1,\"geometry\":{\"type\":\"Point\",\"coordinates\":[0.0,0.0]},\"properties\":{\"name\":\"Test feature\"}}";
+            Assert.That(stringWriter.ToString(), Is.EqualTo(expected));
+        }
+
     }
 
     class MyClass

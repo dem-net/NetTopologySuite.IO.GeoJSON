@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Text;
+using NetTopologySuite.Algorithm;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using Newtonsoft.Json;
@@ -28,15 +30,15 @@ namespace NetTopologySuite.IO.GeoJSON.Test
 
             Assert.That(() => GeoJsonSerializer.Create(factory), Throws.Nothing);
 
-            Assert.That(() => GeoJsonSerializer.Create(factory, 1), Throws.ArgumentException);
+            Assert.That(() => GeoJsonSerializer.Create(factory, 1), Throws.InstanceOf<ArgumentOutOfRangeException>());
             Assert.That(() => GeoJsonSerializer.Create(factory, 2), Throws.Nothing);
             Assert.That(() => GeoJsonSerializer.Create(factory, 3), Throws.Nothing);
-            Assert.That(() => GeoJsonSerializer.Create(factory, 4), Throws.ArgumentException);
+            Assert.That(() => GeoJsonSerializer.Create(factory, 4), Throws.InstanceOf<ArgumentException>());
             Assert.That(() => GeoJsonSerializer.Create(settings, factory), Throws.Nothing);
-            Assert.That(() => GeoJsonSerializer.Create(settings, factory, 1), Throws.ArgumentException);
+            Assert.That(() => GeoJsonSerializer.Create(settings, factory, 1), Throws.InstanceOf<ArgumentException>());
             Assert.That(() => GeoJsonSerializer.Create(settings, factory, 2), Throws.Nothing);
             Assert.That(() => GeoJsonSerializer.Create(settings, factory, 3), Throws.Nothing);
-            Assert.That(() => GeoJsonSerializer.Create(settings, factory, 4), Throws.ArgumentException);
+            Assert.That(() => GeoJsonSerializer.Create(settings, factory, 4), Throws.InstanceOf<ArgumentException>());
         }
 
         ///<summary>
@@ -80,7 +82,7 @@ namespace NetTopologySuite.IO.GeoJSON.Test
         ///    A test for GeoJsonSerializer Serialize method
         ///</summary>
         [Test]
-        public void GeoJsonSerializerGeometryTest()
+        public void GeoJsonSerializerPointTest()
         {
             var sb = new StringBuilder();
             var writer = new StringWriter(sb);
@@ -88,6 +90,24 @@ namespace NetTopologySuite.IO.GeoJSON.Test
             serializer.Serialize(writer, new Point(23, 56));
             writer.Flush();
             Assert.AreEqual("{\"type\":\"Point\",\"coordinates\":[23.0,56.0]}", sb.ToString());
+        }
+
+        ///<summary>
+        ///    A test for GeoJsonSerializer Serialize method
+        ///</summary>
+        [Test]
+        public void GeoJsonSerializerPolygonTest()
+        {
+            var sb = new StringBuilder();
+            var writer = new StringWriter(sb);
+            var factory = NtsGeometryServices.Instance.CreateGeometryFactory(4326);
+            var polygon = factory.CreatePolygon(new[]
+                {new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(10, 10), new Coordinate(0, 0)});
+            var serializer = GeoJsonSerializer.Create(new JsonSerializerSettings(), GeometryFactory.Default, 2);
+
+            serializer.Serialize(writer, polygon);
+            writer.Flush();
+            Assert.AreEqual("{\"type\":\"Polygon\",\"coordinates\":[[[0.0,0.0],[10.0,0.0],[10.0,10.0],[0.0,0.0]]]}", sb.ToString());
         }
 
         ///<summary>

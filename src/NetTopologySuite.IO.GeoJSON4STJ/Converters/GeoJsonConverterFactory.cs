@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NetTopologySuite.Features;
@@ -11,6 +10,10 @@ namespace NetTopologySuite.IO.Converters
     /// <inheritdoc cref="JsonConverterFactory"/>>
     public class GeoJsonConverterFactory : JsonConverterFactory
     {
+        private const bool DefaultWriteGeometryBBox = false;
+        private const RingOrientationOption DefaultRingOrientationOption = RingOrientationOption.EnforceRfc9746;
+        private const bool DefaultAllowModifyingAttributesTables = false;
+
         /// <summary>
         /// The default name that, when seen on <see cref="IAttributesTable"/> or the "properties"
         /// object of a feature, indicates that it should "really" be the feature's "id", not stored
@@ -36,11 +39,15 @@ namespace NetTopologySuite.IO.Converters
 
         private readonly string _idPropertyName;
 
+        private readonly RingOrientationOption _ringOrientationOption;
+
+        private readonly bool _allowModifyingAttributesTables;
+
         /// <summary>
         /// Creates an instance of this class using the defaults.
         /// </summary>
         public GeoJsonConverterFactory()
-            : this(NtsGeometryServices.Instance.CreateGeometryFactory(4326), false)
+            : this(DefaultWriteGeometryBBox)
         {
         }
 
@@ -50,14 +57,24 @@ namespace NetTopologySuite.IO.Converters
         /// </summary>
         /// <param name="factory"></param>
         public GeoJsonConverterFactory(GeometryFactory factory)
-            : this(factory, false)
+            : this(factory, DefaultWriteGeometryBBox)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of this class using the given value for whether or not we should write out
+        /// a "bbox" for a plain geometry, feature and feature collection, and defaults for all other values.
+        /// </summary>
+        /// <param name="writeGeometryBBox"></param>
+        public GeoJsonConverterFactory(bool writeGeometryBBox)
+            : this(writeGeometryBBox, DefaultIdPropertyName)
         {
         }
 
         /// <summary>
         /// Creates an instance of this class using the provided <see cref="GeometryFactory"/>, the
-        /// given value for whether or not we should write out a "bbox" for a plain geometry, and
-        /// defaults for all other values.
+        /// given value for whether or not we should write out a "bbox" for a plain geometry,
+        /// feature and feature collection, and defaults for all other values.
         /// </summary>
         /// <param name="factory"></param>
         /// <param name="writeGeometryBBox"></param>
@@ -67,19 +84,106 @@ namespace NetTopologySuite.IO.Converters
         }
 
         /// <summary>
+        /// Creates an instance of this class using the given value for whether or not we should write out
+        /// a "bbox" for a plain geometry, feature and feature collection, the given "magic" string to signal
+        /// when an <see cref="IAttributesTable"/> property is actually filling in for a Feature's "id", and
+        /// defaults for all other values.
+        /// </summary>
+        /// <param name="writeGeometryBBox"></param>
+        /// <param name="idPropertyName"></param>
+        public GeoJsonConverterFactory(bool writeGeometryBBox, string idPropertyName)
+            : this(writeGeometryBBox, idPropertyName, DefaultRingOrientationOption)
+        {
+        }
+
+        /// <summary>
         /// Creates an instance of this class using the provided <see cref="GeometryFactory"/>, the
-        /// given value for whether or not we should write out a "bbox" for a plain geometry, and
-        /// the given "magic" string to signal when an <see cref="IAttributesTable"/> property is
-        /// actually filling in for a Feature's "id".
+        /// given value for whether or not we should write out a "bbox" for a plain geometry,
+        /// feature and feature collection, the given "magic" string to signal when an
+        /// <see cref="IAttributesTable"/> property is actually filling in for a Feature's "id", and
+        /// defaults for all other values.
         /// </summary>
         /// <param name="factory"></param>
         /// <param name="writeGeometryBBox"></param>
         /// <param name="idPropertyName"></param>
         public GeoJsonConverterFactory(GeometryFactory factory, bool writeGeometryBBox, string idPropertyName)
+            : this(factory, writeGeometryBBox, idPropertyName, DefaultRingOrientationOption)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of this class using the given value for whether or not we should write out
+        /// a "bbox" for a plain geometry, feature and feature collection, the given "magic" string to signal
+        /// when an <see cref="IAttributesTable"/> property is actually filling in for a Feature's "id", the
+        /// <see cref="RingOrientationOption"/> value that indicates how rings should be oriented
+        /// when writing them out, and defaults for all other values.
+        /// </summary>
+        /// <param name="writeGeometryBBox"></param>
+        /// <param name="idPropertyName"></param>
+        /// <param name="ringOrientationOption"></param>
+        public GeoJsonConverterFactory(bool writeGeometryBBox, string idPropertyName, RingOrientationOption ringOrientationOption)
+            : this(writeGeometryBBox, idPropertyName, ringOrientationOption, DefaultAllowModifyingAttributesTables)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of this class using the provided <see cref="GeometryFactory"/>, the
+        /// given value for whether or not we should write out a "bbox" for a plain geometry,
+        /// feature and feature collection, the given "magic" string to signal when an
+        /// <see cref="IAttributesTable"/> property is actually filling in for a Feature's "id", the
+        /// <see cref="RingOrientationOption"/> value that indicates how rings should be oriented
+        /// when writing them out, and defaults for all other values.
+        /// </summary>
+        /// <param name="factory"></param>
+        /// <param name="writeGeometryBBox"></param>
+        /// <param name="idPropertyName"></param>
+        /// <param name="ringOrientationOption"></param>
+        public GeoJsonConverterFactory(GeometryFactory factory, bool writeGeometryBBox, string idPropertyName,
+            RingOrientationOption ringOrientationOption)
+            : this(factory, writeGeometryBBox, idPropertyName, ringOrientationOption, DefaultAllowModifyingAttributesTables)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of this class using the given value for whether or not we should write out
+        /// a "bbox" for a plain geometry, feature and feature collection, the given "magic" string to signal
+        /// when an <see cref="IAttributesTable"/> property is actually filling in for a Feature's "id", the
+        /// <see cref="RingOrientationOption"/> value that indicates how rings should be oriented
+        /// when writing them out, and a flag indicating whether or not to use a less efficient
+        /// implementation of <see cref="IAttributesTable"/> that can be modified in-place.
+        /// </summary>
+        /// <param name="writeGeometryBBox"></param>
+        /// <param name="idPropertyName"></param>
+        /// <param name="ringOrientationOption"></param>
+        /// <param name="allowModifyingAttributesTables"></param>
+        public GeoJsonConverterFactory(bool writeGeometryBBox, string idPropertyName,
+            RingOrientationOption ringOrientationOption, bool allowModifyingAttributesTables)
+            : this(NtsGeometryServices.Instance.CreateGeometryFactory(4326), writeGeometryBBox, idPropertyName, ringOrientationOption, allowModifyingAttributesTables)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of this class using the provided <see cref="GeometryFactory"/>, the
+        /// given value for whether or not we should write out a "bbox" for a plain geometry,
+        /// feature and feature collection, the given "magic" string to signal when an
+        /// <see cref="IAttributesTable"/> property is actually filling in for a Feature's "id", the
+        /// <see cref="RingOrientationOption"/> value that indicates how rings should be oriented
+        /// when writing them out, and a flag indicating whether or not to use a less efficient
+        /// implementation of <see cref="IAttributesTable"/> that can be modified in-place.
+        /// </summary>
+        /// <param name="factory"></param>
+        /// <param name="writeGeometryBBox"></param>
+        /// <param name="idPropertyName"></param>
+        /// <param name="ringOrientationOption"></param>
+        /// <param name="allowModifyingAttributesTables"></param>
+        public GeoJsonConverterFactory(GeometryFactory factory, bool writeGeometryBBox, string idPropertyName,
+            RingOrientationOption ringOrientationOption, bool allowModifyingAttributesTables)
         {
             _factory = factory;
             _writeGeometryBBox = writeGeometryBBox;
             _idPropertyName = idPropertyName ?? DefaultIdPropertyName;
+            _ringOrientationOption = ringOrientationOption;
+            _allowModifyingAttributesTables = allowModifyingAttributesTables;
         }
 
         ///<inheritdoc cref="JsonConverter.CanConvert(Type)"/>
@@ -95,13 +199,13 @@ namespace NetTopologySuite.IO.Converters
         public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
         {
             if (GeometryTypes.Contains(typeToConvert))
-                return new StjGeometryConverter(_factory, _writeGeometryBBox);
+                return new StjGeometryConverter(_factory, _writeGeometryBBox, _ringOrientationOption);
             if (typeToConvert == typeof(FeatureCollection))
-                return new StjFeatureCollectionConverter();
+                return new StjFeatureCollectionConverter(_writeGeometryBBox);
             if (typeof(IFeature).IsAssignableFrom(typeToConvert))
-                return new StjFeatureConverter(_idPropertyName);
+                return new StjFeatureConverter(_idPropertyName, _writeGeometryBBox);
             if (typeof(IAttributesTable).IsAssignableFrom(typeToConvert))
-                return new StjAttributesTableConverter(_idPropertyName);
+                return new StjAttributesTableConverter(_idPropertyName, _allowModifyingAttributesTables);
 
             throw new ArgumentException(nameof(typeToConvert));
         }

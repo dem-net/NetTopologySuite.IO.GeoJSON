@@ -119,10 +119,10 @@ namespace NetTopologySuite.IO.GeoJSON.Test
                 throw new Exception();
 
             Console.WriteLine(des.AsText());
-            Assert.IsTrue(des.EqualsExact(geom));
+            Assert.IsTrue(des.EqualsExact(GeoJsonFixture.InExpectedOrientation(geom)));
         }
 
-        [Test]
+        [Test, Ignore("CoordinateConverter no longer added to serializer")]
         public void TestCoordinateSerialize()
         {
             var coordinate = new Coordinate(1, 1);
@@ -133,7 +133,7 @@ namespace NetTopologySuite.IO.GeoJSON.Test
             Console.WriteLine(sb.ToString());
         }
 
-        [Test]
+        [Test, Ignore("CoordinateConverter no longer added to serializer")]
         public void TestCoordinatesSerialize()
         {
             var coordinates = new Coordinate[4];

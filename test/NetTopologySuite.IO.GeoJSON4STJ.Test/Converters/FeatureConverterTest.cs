@@ -41,6 +41,13 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             Assert.That(() => JsonSerializer.Deserialize<IFeature>(serializedFeature, DefaultOptions), Throws.Nothing);
         }
 
+        [TestCase("{\"type\": \"Feature\", \"id\": 1, \"extra\": {\"example\": \"value\"}}")]
+        [TestCase("{\"type\": \"Feature\", \"id\": 1, \"extra\": {\"type\": \"Line\", \"id\": 2}}")]
+        public void DeserializationShouldAllowForeignMembers(string serializedFeature)
+        {
+            Assert.That(() => JsonSerializer.Deserialize<IFeature>(serializedFeature, DefaultOptions), Throws.Nothing);
+        }
+
         ///<summary>
         ///    A test for WriteJson
         ///</summary>
@@ -52,7 +59,7 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             IFeature value = new Feature(new Point(23.1, 56.2), attributes);
             var options = DefaultOptions;
             options.WriteIndented = false;
-            options.IgnoreNullValues = true;
+            options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
             //GeoJsonConverterFactory.OrdinateFormatString = "0.{}";
 
             string json = ToJsonString(value, options);
@@ -61,6 +68,20 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             //Assert.AreEqual("{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[23.1,56.2]},\"properties\":{\"test1\":\"value1\"}}", ToJson(value));
         }
 
+        /// <summary>
+        /// Tests whether required feature members are written, even if they are null.
+        /// </summary>
+        [Test]
+        public void WriteJsonShouldIgnoreCustomNullWritingOptionsTest()
+        {
+            IFeature value = new Feature(null, null);
+            var options = DefaultOptions;
+            options.WriteIndented = false;
+            options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+
+            string json = ToJsonString(value, options);
+            Assert.AreEqual("{\"type\":\"Feature\",\"geometry\":null,\"properties\":null}", json);
+        }
 
         ///<summary>
         ///    A test for WriteJson
@@ -73,7 +94,7 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             IFeature value = new Feature(new Point(23.1, 56.2), attributes);
             var options = DefaultOptions;
             options.WriteIndented = false;
-            options.IgnoreNullValues = true;
+            options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 
             string json = ToJsonString(value, options);
             var deserialized = Deserialize(json, options);
@@ -130,13 +151,16 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             }
         }
 
-        public static void CheckEquality(IFeature s, IFeature d, string idPropertyName = null)
+        public static void CheckEquality(IFeature s, IFeature d, string idPropertyName = null, RingOrientationOption roo = RingOrientationOption.EnforceRfc9746)
         {
             idPropertyName ??= GeoJsonConverterFactory.DefaultIdPropertyName;
 
             Assert.That(d, Is.Not.Null);
 
-            Assert.That(s.Geometry.EqualsExact(d.Geometry));
+            if (roo == RingOrientationOption.DoNotModify)
+                Assert.That(s.Geometry.EqualsExact(d.Geometry));
+            else
+                Assert.That(s.Geometry.EqualsTopologically(d.Geometry));
 
             AttributesTableConverterTest.TestEquality(s.Attributes, d.Attributes, idPropertyName);
 
@@ -181,5 +205,47 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             }
         }
 
+        [GeoJsonIssueNumber(79)]
+        [Test]
+        public void TestFeatureIdSerializedToRoot()
+        {
+            var feature = new Feature
+            {
+                Geometry = new Point(0, 0),
+                Attributes = new AttributesTable(new Dictionary<string, object> {
+                    { "name", "Test feature" },
+                    { "id", 1 }
+                })
+            };
+
+            var options = new JsonSerializerOptions
+            {
+                Converters =
+                {
+                    new GeoJsonConverterFactory(GeometryFactory.Default, false, "id"),
+                },
+            };
+
+            string expected = "{\"type\":\"Feature\",\"id\":1,\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0]},\"properties\":{\"name\":\"Test feature\"}}";
+            Assert.That(JsonSerializer.Serialize(feature, options), Is.EqualTo(expected));
+        }
+
+        [GeoJsonIssueNumber(132)]
+        [Test]
+        public void TestNumericFeatureIdMustBeValidDecimal()
+        {
+            string serialized = $@"
+{{
+    ""type"": ""Feature"",
+    ""id"": {double.MaxValue},
+    ""geometry"": {{
+        ""type"": ""Point"",
+        ""coordinates"": [0, 0]
+    }}
+}}
+            ";
+            
+            Assert.That(() => JsonSerializer.Deserialize<Feature>(serialized, DefaultOptions), Throws.InstanceOf<JsonException>());
+        }
     }
 }

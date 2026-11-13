@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 using NetTopologySuite.Features;
@@ -11,19 +12,20 @@ namespace NetTopologySuite.IO.Converters
     /// </summary>
     internal class StjAttributesTableConverter : JsonConverter<IAttributesTable>
     {
-        private static readonly StjAttributesTable EmptyTable = new StjAttributesTable();
-
         private readonly string _idPropertyName;
 
-        public StjAttributesTableConverter(string idPropertyName)
+        private readonly bool _allowModifyingAttributesTables;
+
+        public StjAttributesTableConverter(string idPropertyName, bool allowModifyingAttributesTables)
         {
             _idPropertyName = idPropertyName;
+            _allowModifyingAttributesTables = allowModifyingAttributesTables;
         }
 
         /// <summary>
         /// Writes the JSON representation of the object.
         /// </summary>
-        /// <param name="writer">The <see cref="T:Newtonsoft.Json.JsonWriter"/> to write to.</param>
+        /// <param name="writer">The <see cref="Utf8JsonWriter"/> to write to.</param>
         /// <param name="value">The value.</param>
         /// <param name="options">The calling serializer.</param>
         public override void Write(Utf8JsonWriter writer, IAttributesTable value, JsonSerializerOptions options)
@@ -51,7 +53,7 @@ namespace NetTopologySuite.IO.Converters
         /// <summary>
         /// Reads the JSON representation of the object.
         /// </summary>
-        /// <param name="reader">The <see cref="T:Newtonsoft.Json.JsonReader"/> to read from.</param>
+        /// <param name="reader">The <see cref="Utf8JsonReader"/> to read from.</param>
         /// <param name="objectType">Type of the object.</param>
         /// <param name="options">The calling serializer.</param>
         /// <returns>
@@ -64,10 +66,14 @@ namespace NetTopologySuite.IO.Converters
                 switch (doc.RootElement.ValueKind)
                 {
                     case JsonValueKind.Null:
-                        return EmptyTable;
+                        // this SHOULD only be possible when invoked directly?
+                        return null;
+
+                    case JsonValueKind.Object when _allowModifyingAttributesTables:
+                        return new JsonObjectAttributesTable(JsonObject.Create(doc.RootElement.Clone()), options);
 
                     case JsonValueKind.Object:
-                        return new StjAttributesTable(doc.RootElement);
+                        return new JsonElementAttributesTable(doc.RootElement);
 
                     default:
                         throw new JsonException();

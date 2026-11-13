@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Runtime.Serialization;
 
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
@@ -63,18 +62,12 @@ namespace NetTopologySuite.IO.Converters
             }
 
             // geometry
-            if (serializer.NullValueHandling == NullValueHandling.Include || !(feature.Geometry is null))
-            {
-                writer.WritePropertyName("geometry");
-                serializer.Serialize(writer, feature.Geometry, typeof(Geometry));
-            }
+            writer.WritePropertyName("geometry");
+            serializer.Serialize(writer, feature.Geometry, typeof(Geometry));
 
             // properties
-            if (serializer.NullValueHandling == NullValueHandling.Include || !(feature.Attributes is null))
-            {
-                writer.WritePropertyName("properties");
-                serializer.Serialize(writer, feature.Attributes, typeof(IAttributesTable));
-            }
+            writer.WritePropertyName("properties");
+            serializer.Serialize(writer, feature.Attributes, typeof(IAttributesTable));
 
             writer.WriteEndObject();
         }
@@ -93,7 +86,7 @@ namespace NetTopologySuite.IO.Converters
         {
             if (reader.TokenType != JsonToken.StartObject)
             {
-                throw new JsonReaderException("Expected Start object '{' Token");
+                throw new JsonReaderException("Expected token '{' not found");
             }
 
             bool read = reader.Read();
@@ -108,7 +101,7 @@ namespace NetTopologySuite.IO.Converters
                         reader.Read();
                         if ((string)reader.Value != "Feature")
                         {
-                            throw new ArgumentException("Expected value 'Feature' not found.");
+                            throw new JsonReaderException("Expected value 'Feature' not found");
                         }
 
                         read = reader.Read();
@@ -151,13 +144,13 @@ namespace NetTopologySuite.IO.Converters
 
                         if (reader.TokenType != JsonToken.StartObject)
                         {
-                            throw new ArgumentException("Expected token '{' not found.");
+                            throw new JsonReaderException("Expected token '{' not found");
                         }
 
                         feature.Geometry = serializer.Deserialize<Geometry>(reader);
                         if (reader.TokenType != JsonToken.EndObject)
                         {
-                            throw new ArgumentException("Expected token '}' not found.");
+                            throw new JsonReaderException("Expected token '}' not found");
                         }
 
                         read = reader.Read();
@@ -170,7 +163,7 @@ namespace NetTopologySuite.IO.Converters
                             // #120: ensure "properties" isn't "null"
                             if (reader.TokenType != JsonToken.StartObject)
                             {
-                                throw new ArgumentException("Expected token '{' not found.");
+                                throw new JsonReaderException("Expected token '{' not found");
                             }
 
                             var attributes = serializer.Deserialize<AttributesTable>(reader);
@@ -192,7 +185,7 @@ namespace NetTopologySuite.IO.Converters
 
                             if (reader.TokenType != JsonToken.EndObject)
                             {
-                                throw new ArgumentException("Expected token '}' not found.");
+                                throw new JsonReaderException("Expected token '}' not found");
                             }
                         }
                         read = reader.Read();
@@ -214,7 +207,7 @@ namespace NetTopologySuite.IO.Converters
 
             if (read && reader.TokenType != JsonToken.EndObject)
             {
-                throw new ArgumentException("Expected token '}' not found.");
+                throw new JsonReaderException("Expected token '}' not found");
             }
 
             return feature;

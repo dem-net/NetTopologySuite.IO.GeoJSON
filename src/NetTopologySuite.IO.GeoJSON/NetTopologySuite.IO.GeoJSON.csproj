@@ -4,9 +4,9 @@
   <!-- Set these very early in the process, before Directory.Build.props is imported. -->
   <PropertyGroup Label="Version numbers">
     <!-- MAJOR, MINOR, and PATCH are defined according to SemVer 2.0.0. -->
-    <NtsMajorVersion Condition=" '$(NtsMajorVersion)' == '' ">2</NtsMajorVersion>
+    <NtsMajorVersion Condition=" '$(NtsMajorVersion)' == '' ">4</NtsMajorVersion>
     <NtsMinorVersion Condition=" '$(NtsMinorVersion)' == '' ">0</NtsMinorVersion>
-    <NtsPatchVersion Condition=" '$(NtsPatchVersion)' == '' ">4</NtsPatchVersion>
+    <NtsPatchVersion Condition=" '$(NtsPatchVersion)' == '' ">0</NtsPatchVersion>
   </PropertyGroup>
 
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
@@ -26,8 +26,9 @@
     <Title>NTS - Topology Suite - IO Library for GeoJSON</Title>
     <Authors>NetTopologySuite - Team</Authors>
     <Owners>NetTopologySuite - Team</Owners>
-    <PackageLicenseExpression>LGPL-2.1-or-later</PackageLicenseExpression>
-    <Description>This package contains the GeoJSON IO library.</Description>
+    <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
+    <Description>This package contains the GeoJSON IO library. Portions of this library were 
+	    inspired from an early version of GeoJSON.Net by Jörg Battermann.</Description>
     <PackageTags>NTS;GeoJSON</PackageTags>
   </PropertyGroup>
 

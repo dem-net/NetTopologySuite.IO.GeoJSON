@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -9,7 +9,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Issues\NetTopologySuite.IO.GeoJSON\GitHubIssue114.json" />
+    <None Remove="Issues\StackOverflow\Q69013006.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Issues\NetTopologySuite.IO.GeoJSON\GitHubIssue114.json" />
+    <EmbeddedResource Include="Issues\StackOverflow\Q69013006.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\NetTopologySuite.IO.GeoJSON\NetTopologySuite.IO.GeoJSON.csproj" />
+    <ProjectReference Include="..\..\src\NetTopologySuite.IO.GeoJSON4STJ\NetTopologySuite.IO.GeoJSON4STJ.csproj" />
   </ItemGroup>
 
 </Project>

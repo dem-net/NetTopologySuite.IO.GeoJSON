@@ -1,8 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Issues\Issue87.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Issues\Issue87.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\NetTopologySuite.IO.GeoJSON4STJ\NetTopologySuite.IO.GeoJSON4STJ.csproj" />

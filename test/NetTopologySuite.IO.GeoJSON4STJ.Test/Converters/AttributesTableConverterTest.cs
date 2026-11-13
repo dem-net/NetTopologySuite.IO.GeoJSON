@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NetTopologySuite.Features;
+using NetTopologySuite.IO.Converters;
 using NUnit.Framework;
 
 namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
@@ -14,9 +15,15 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
     ///    This is a test class for AttributesTableConverterTest and is intended
     ///    to contain all AttributesTableConverterTest Unit Tests
     ///</summary>
-    [TestFixture]
+    [TestFixture(false)]
+    [TestFixture(true)]
     public class AttributesTableConverterTest : SandDTest<IAttributesTable>
     {
+        public AttributesTableConverterTest(bool allowModifyingAttributesTables)
+            : base(new GeoJsonConverterFactory(null, false, null, RingOrientationOption.EnforceRfc9746, allowModifyingAttributesTables))
+        {
+        }
+
         ///<summary>
         ///A test for CanConvert
         ///</summary>
@@ -57,6 +64,19 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             Assert.That(atD.GetNames()[1], Is.EqualTo(atS.GetNames()[1]));
             Assert.That(atD[atD.GetNames()[0]], Is.EqualTo(atS[atS.GetNames()[0]]));
             Assert.That(atD[atD.GetNames()[1]], Is.EqualTo(atS[atS.GetNames()[1]]));
+        }
+
+        [Test]
+        [GeoJsonIssueNumber(102)]
+        public void ReadJsonWithNullTest()
+        {
+            const string json = "null";
+            var options = DefaultOptions;
+            var converter = (JsonConverter<IAttributesTable>)GeoJsonConverterFactory.CreateConverter(typeof(IAttributesTable), options);
+            var reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(json));
+
+            reader.Read();
+            Assert.That(converter.Read(ref reader, typeof(IAttributesTable), options), Is.Null);
         }
 
         [Test]

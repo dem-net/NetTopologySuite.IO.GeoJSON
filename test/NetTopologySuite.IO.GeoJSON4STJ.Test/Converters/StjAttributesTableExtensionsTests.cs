@@ -9,6 +9,10 @@ using NUnit.Framework;
 
 namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
 {
+    // These methods were moved to instance methods on JsonElementAttributesTable, but the extension
+    // methods need to remain for compat reasons, so:
+    #pragma warning disable CS0618
+
     public sealed class StjAttributesTableExtensionsTests
     {
         [Test]
@@ -109,8 +113,9 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
             Assert.That(gasStation.Owner.Age, Is.EqualTo(41));
         }
 
-        [Test]
-        public void TryGetJsonObjectPropertyValueShouldActAppropriatelyWhenPropertyIsPresent()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TryGetJsonObjectPropertyValueShouldActAppropriatelyWhenPropertyIsPresent(bool allowModification)
         {
             const string Json = @"{
     ""type"": ""Feature"",
@@ -152,7 +157,7 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
 }";
             var options = new JsonSerializerOptions
             {
-                Converters = { new GeoJsonConverterFactory() },
+                Converters = { new GeoJsonConverterFactory(null, false, null, RingOrientationOption.EnforceRfc9746, allowModification) },
                 PropertyNameCaseInsensitive = true,
             };
 
@@ -285,6 +290,10 @@ namespace NetTopologySuite.IO.GeoJSON4STJ.Test.Converters
                 Assert.That(!feature.Attributes.TryGetJsonObjectPropertyValue("null", options, out DateTime _), () => "DateTime from null");
                 Assert.That(!feature.Attributes.TryGetJsonObjectPropertyValue("null", options, out DateTimeOffset _), () => "DateTimeOffset from null");
                 Assert.That(!feature.Attributes.TryGetJsonObjectPropertyValue("null", options, out Guid _), () => "Guid from null");
+
+                // as of 3.x, we now expose the table so that the caller can get the underlying STJ
+                // DOM object for their own inspection and manipulation.
+                Assert.That(feature.Attributes, Is.InstanceOf<IPartiallyDeserializedAttributesTable>());
             });
 
             // complex type, with two properties: one of a user-defined complex type, and one that
